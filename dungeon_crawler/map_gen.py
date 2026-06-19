@@ -36,26 +36,22 @@ def _find_door_pos(m, a, b):
         if m[ay][x] == TILE_FLOOR:
             w1 = m[ay-1][x] if ay > 0 else TILE_WALL
             w2 = m[ay+1][x] if ay < MAP_HEIGHT-1 else TILE_WALL
-            if w1 == TILE_WALL and w2 == TILE_WALL:
-                cands.append((x, ay))
+            if w1 == TILE_WALL and w2 == TILE_WALL: cands.append((x, ay))
     for y in range(min(ay,by), max(ay,by)+1):
         if m[y][ax] == TILE_FLOOR:
             w1 = m[y][ax-1] if ax > 0 else TILE_WALL
             w2 = m[y][ax+1] if ax < MAP_WIDTH-1 else TILE_WALL
-            if w1 == TILE_WALL and w2 == TILE_WALL:
-                cands.append((ax, y))
+            if w1 == TILE_WALL and w2 == TILE_WALL: cands.append((ax, y))
     for x in range(min(ax,bx), max(ax,bx)+1):
         if m[by][x] == TILE_FLOOR:
             w1 = m[by-1][x] if by > 0 else TILE_WALL
             w2 = m[by+1][x] if by < MAP_HEIGHT-1 else TILE_WALL
-            if w1 == TILE_WALL and w2 == TILE_WALL:
-                cands.append((x, by))
+            if w1 == TILE_WALL and w2 == TILE_WALL: cands.append((x, by))
     for y in range(min(ay,by), max(ay,by)+1):
         if m[y][bx] == TILE_FLOOR:
             w1 = m[y][bx-1] if bx > 0 else TILE_WALL
             w2 = m[y][bx+1] if bx < MAP_WIDTH-1 else TILE_WALL
-            if w1 == TILE_WALL and w2 == TILE_WALL:
-                cands.append((bx, y))
+            if w1 == TILE_WALL and w2 == TILE_WALL: cands.append((bx, y))
     return random.choice(cands) if cands else None
 
 
@@ -69,6 +65,25 @@ def _rand_floor(m, excl=None):
     fs = [(x,y) for y in range(1,MAP_HEIGHT-1) for x in range(1,MAP_WIDTH-1)
           if m[y][x]==TILE_FLOOR and (not excl or (x,y) not in excl)]
     return random.choice(fs) if fs else (MAP_WIDTH//2, MAP_HEIGHT//2)
+
+
+def _force_door_route(m):
+    mid_x = MAP_WIDTH // 2
+    door_y = MAP_HEIGHT // 2
+    for y in range(2, MAP_HEIGHT - 2):
+        m[y][mid_x - 2] = TILE_WALL
+        m[y][mid_x + 2] = TILE_WALL
+    m[door_y][mid_x] = TILE_DOOR
+    m[door_y][mid_x - 1] = TILE_FLOOR
+    m[door_y][mid_x + 1] = TILE_FLOOR
+    for y in range(2, door_y):
+        if m[y][mid_x] == TILE_WALL: m[y][mid_x] = TILE_FLOOR
+    for y in range(door_y + 1, MAP_HEIGHT - 2):
+        if m[y][mid_x] == TILE_WALL: m[y][mid_x] = TILE_FLOOR
+    key_x = random.randint(3, mid_x - 3)
+    key_y = random.randint(3, door_y - 1)
+    m[key_y][key_x] = TILE_FLOOR
+    return (mid_x, door_y), (key_x, key_y)
 
 
 def generate_map(level=1):
@@ -107,12 +122,17 @@ def generate_map(level=1):
             kp = _room_floor(m, rooms[kr_idx], occ) or _rand_floor(m, occ)
             keys.append(kp); occ.add(kp)
 
-    if not doors and len(rooms) >= 2:
+    if not doors:
         dp = _find_door_pos(m, rooms[0], rooms[-1])
         if dp and m[dp[1]][dp[0]] == TILE_FLOOR:
             m[dp[1]][dp[0]] = TILE_DOOR; doors.append(dp)
             kp = _room_floor(m, rooms[0], occ) or _rand_floor(m, occ)
-            keys.append(kp)
+            keys.append(kp); occ.add(kp)
+
+    if not doors:
+        door_pos, key_pos = _force_door_route(m)
+        doors.append(door_pos); keys.append(key_pos)
+        occ.add(door_pos); occ.add(key_pos)
 
     ps = (rooms[0].cx, rooms[0].cy)
     sx, sy = rooms[-1].cx, rooms[-1].cy

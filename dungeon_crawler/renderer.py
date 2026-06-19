@@ -8,7 +8,7 @@ from constants import (
     COLOR_HP_BG, COLOR_HP_FILL, COLOR_TEXT, COLOR_BG,
     ENEMY_PATROL, ENEMY_TRACKER, ENEMY_GUARD,
     COLOR_ENEMY_PATROL, COLOR_ENEMY_TRACKER, COLOR_ENEMY_GUARD,
-    BUFF_NAMES, BUFF_COLORS
+    BUFF_NAMES, BUFF_COLORS, BUFF_DESCS
 )
 
 
@@ -23,10 +23,10 @@ class Camera:
 class Renderer:
     def __init__(self, screen):
         self.screen = screen; self.camera = Camera()
-        try: self.font = pygame.font.SysFont("arial",20,bold=True); self.sfont = pygame.font.SysFont("arial",14)
-        except: self.font = pygame.font.Font(None,24); self.sfont = pygame.font.Font(None,18)
+        try: self.font=pygame.font.SysFont("arial",20,bold=True); self.sfont=pygame.font.SysFont("arial",14)
+        except: self.font=pygame.font.Font(None,24); self.sfont=pygame.font.Font(None,18)
 
-    def resize(self, w, h): self.camera.view_w = w; self.camera.view_h = h
+    def resize(self, w, h): self.camera.view_w=w; self.camera.view_h=h
     def _iv(self, r): return pygame.Rect(0,0,self.camera.view_w,self.camera.view_h).colliderect(r)
     def _eye(self, r, ey):
         pygame.draw.rect(self.screen,(255,255,255),(r.x+4,ey,4,4))
@@ -78,6 +78,7 @@ class Renderer:
     def draw_player(self, player):
         pr=player.rect.move(-self.camera.x,-self.camera.y)
         if player.invincible_timer>0 and player.invincible_timer%8<4: return
+        if player.door_shield_timer>0 and player.door_shield_timer%6<3: return
         pygame.draw.rect(self.screen,COLOR_PLAYER,pr)
         pygame.draw.rect(self.screen,COLOR_PLAYER_TOP,(pr.x+2,pr.y+2,pr.w-4,pr.h-8))
         self._eye(pr,pr.y+6)
@@ -90,21 +91,26 @@ class Renderer:
         if self.font:
             self.screen.blit(self.font.render(f"HP:{player.hp}/{player.max_hp}",True,COLOR_TEXT),(bx+bw+10,by-2))
             self.screen.blit(self.font.render(f"x {player.keys}",True,COLOR_TEXT),(36,by+bh+8))
-            self.screen.blit(self.font.render(f"第 {level} 层",True,COLOR_TEXT),
-                             self.font.render(f"第 {level} 层",True,COLOR_TEXT).get_rect(topright=(self.camera.view_w-10,10)))
+            lt=self.font.render(f"第 {level} 层",True,COLOR_TEXT)
+            self.screen.blit(lt,lt.get_rect(topright=(self.camera.view_w-10,10)))
         y=by+bh+40
         for b in player.buffs:
-            pygame.draw.rect(self.screen,BUFF_COLORS.get(b,COLOR_TEXT),(10,y,12,12))
-            if self.sfont: self.screen.blit(self.sfont.render(BUFF_NAMES.get(b,"?"),True,COLOR_TEXT),(26,y-2))
+            bc=BUFF_COLORS.get(b,COLOR_TEXT)
+            pygame.draw.rect(self.screen,bc,(10,y,12,12))
+            pygame.draw.rect(self.screen,(255,255,255),(10,y,12,12),1)
+            if self.sfont:
+                nm=BUFF_NAMES.get(b,"?")
+                self.screen.blit(self.sfont.render(nm,True,bc),(26,y-2))
             y+=18
+            if y>self.camera.view_h-20: break
 
     def _overlay(self, title, lines, hint=""):
         ov=pygame.Surface((self.camera.view_w,self.camera.view_h),pygame.SRCALPHA)
         ov.fill((0,0,0,180)); self.screen.blit(ov,(0,0))
         if not self.font: return
         cx,cy=self.camera.view_w//2,self.camera.view_h//2
-        self.screen.blit(self.font.render(title,True,(255,200,100)),
-                         self.font.render(title,True,(255,200,100)).get_rect(center=(cx,cy-60-len(lines)*10)))
+        t=self.font.render(title,True,(255,200,100))
+        self.screen.blit(t,t.get_rect(center=(cx,cy-60-len(lines)*10)))
         for i,l in enumerate(lines):
             t=self.font.render(l,True,COLOR_TEXT); self.screen.blit(t,t.get_rect(center=(cx,cy-20+i*28)))
         if hint:
@@ -114,7 +120,7 @@ class Renderer:
 
     def draw_pause(self, player, level):
         ls=["操作: 方向键/WASD 移动","P: 暂停  ESC: 退出",f"当前: 第 {level} 层",f"钥匙: {player.keys}"]
-        for b in player.buffs: ls.append(f"强化: {BUFF_NAMES.get(b,'?')}")
+        for b in player.buffs: ls.append(f"强化: {BUFF_NAMES.get(b,'?')} - {BUFF_DESCS.get(b,'')}")
         self._overlay("暂停",ls,"按 P 继续")
 
     def draw_level_up(self, options, sel):
@@ -122,14 +128,22 @@ class Renderer:
         ov.fill((0,0,0,180)); self.screen.blit(ov,(0,0))
         if not self.font: return
         cx,cy=self.camera.view_w//2,self.camera.view_h//2
-        self.screen.blit(self.font.render("选择强化!",True,(255,200,100)),
-                         self.font.render("选择强化!",True,(255,200,100)).get_rect(center=(cx,cy-80)))
+        t=self.font.render("选择强化!",True,(255,200,100))
+        self.screen.blit(t,t.get_rect(center=(cx,cy-110)))
         for i,opt in enumerate(options):
-            c=(255,255,100) if i==sel else COLOR_TEXT
-            pygame.draw.rect(self.screen,BUFF_COLORS.get(opt,COLOR_TEXT),(cx-120,cy-30+i*50,20,20))
-            self.screen.blit(self.font.render(BUFF_NAMES.get(opt,"?"),True,c),(cx-90,cy-32+i*50))
+            is_sel = (i==sel)
+            c=(255,255,100) if is_sel else COLOR_TEXT
+            bc=BUFF_COLORS.get(opt,COLOR_TEXT)
+            bx,by2=cx-140,cy-60+i*60
+            if is_sel: pygame.draw.rect(self.screen,(60,60,80),(bx-6,by2-4,290,52),border_radius=4)
+            pygame.draw.rect(self.screen,bc,(bx,by2+4,24,24))
+            pygame.draw.rect(self.screen,(255,255,255),(bx,by2+4,24,24),1)
+            self.screen.blit(self.font.render(BUFF_NAMES.get(opt,"?"),True,c),(bx+32,by2))
+            if self.sfont:
+                self.screen.blit(self.sfont.render(BUFF_DESCS.get(opt,""),True,
+                    (180,180,180) if is_sel else (120,120,120)),(bx+32,by2+24))
         if self.sfont:
-            self.screen.blit(self.sfont.render("↑↓选择 Enter确认",True,(150,150,150)),
-                             self.sfont.render("↑↓选择 Enter确认",True,(150,150,150)).get_rect(center=(cx,cy+80)))
+            ht=self.sfont.render("↑↓选择 Enter确认",True,(150,150,150))
+            self.screen.blit(ht,ht.get_rect(center=(cx,cy+140)))
 
     def clear(self): self.screen.fill(COLOR_BG)
