@@ -40,6 +40,38 @@ class Player:
     def has_buff(self, bt):
         return bt in self.buffs
 
+    def get_combos(self):
+        cs=[]
+        if self.has_buff(BUFF_DOOR_SHIELD) and self.has_buff(BUFF_HURT_KNOCK): cs.append('开门即退')
+        if self.has_buff(BUFF_LOW_HP_SPEED) and self.has_buff(BUFF_HURT_KNOCK): cs.append('绝境爆发')
+        if self.has_buff(BUFF_KEY_KEEP) and self.has_buff(BUFF_KEY_MAGNET): cs.append('钥匙在手')
+        if self.has_buff(BUFF_INVINCIBLE) and self.has_buff(BUFF_DOOR_SHIELD): cs.append('不死战神')
+        return cs
+
+    def get_combo_info(self):
+        ci={}
+        if self.has_buff(BUFF_DOOR_SHIELD) and self.has_buff(BUFF_HURT_KNOCK):
+            ci['开门即退']='护盾期自动击退怪物'
+        if self.has_buff(BUFF_LOW_HP_SPEED) and self.has_buff(BUFF_HURT_KNOCK):
+            ci['绝境爆发']='低血时击退距离×2'
+        if self.has_buff(BUFF_KEY_KEEP) and self.has_buff(BUFF_KEY_MAGNET):
+            ci['钥匙在手']='磁铁范围+3 吸附更快'
+        if self.has_buff(BUFF_INVINCIBLE) and self.has_buff(BUFF_DOOR_SHIELD):
+            ci['不死战神']='护盾时间×1.5'
+        return ci
+
+    def get_magnet_bonus(self):
+        extra_range=0; extra_speed=1.0
+        if self.has_buff(BUFF_KEY_KEEP) and self.has_buff(BUFF_KEY_MAGNET):
+            extra_range=3; extra_speed=1.5
+        return extra_range, extra_speed
+
+    def get_knockback_bonus(self):
+        dist=0; auto=False
+        if self.has_buff(BUFF_LOW_HP_SPEED) and self.has_buff(BUFF_HURT_KNOCK) and self.hp<=1: dist=3
+        if self.has_buff(BUFF_DOOR_SHIELD) and self.has_buff(BUFF_HURT_KNOCK) and self.door_shield_timer>0: auto=True
+        return dist, auto
+
     def get_speed(self):
         spd = PLAYER_SPEED + self.speed_bonus
         if self.has_buff(BUFF_LOW_HP_SPEED) and self.hp <= 1:
@@ -81,7 +113,8 @@ class Player:
                     if not self.key_keep: self.keys -= 1
                     opened_any = True
                     if self.has_buff(BUFF_DOOR_SHIELD):
-                        self.door_shield_timer = DOOR_SHIELD_FRAMES
+                        sf = 1.5 if (self.has_buff(BUFF_INVINCIBLE)) else 1.0
+                        self.door_shield_timer = int(DOOR_SHIELD_FRAMES * sf)
         return opened_any
 
     def update(self, game_map, doors_opened):

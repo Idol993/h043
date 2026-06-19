@@ -26,14 +26,14 @@ class Key:
             self.collected = True; return True
         return False
 
-    def try_magnet(self, player_rect, is_first_key):
+    def try_magnet(self, player_rect, is_first_key, bonus_range=0, bonus_speed=1.0):
         if self.collected or self.magnet_target: return
         if not is_first_key: return
         pcx, pcy = player_rect.centerx, player_rect.centery
         kcx, kcy = self.rect.centerx, self.rect.centery
         dist = math.hypot(pcx - kcx, pcy - kcy)
-        if dist <= KEY_MAGNET_RANGE * TILE_SIZE:
-            self.magnet_target = (pcx, pcy)
+        if dist <= (KEY_MAGNET_RANGE + bonus_range) * TILE_SIZE:
+            self.magnet_target = (pcx, pcy); self.magnet_speed = 4.0 * bonus_speed
 
     def update_magnet(self, player_rect):
         if self.collected or not self.magnet_target: return

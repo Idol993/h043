@@ -1,13 +1,8 @@
-import pygame
-import random
+import pygame, random
 from dataclasses import dataclass, field
-from constants import (
-    TILE_SIZE, TILE_WALL, TILE_DOOR,
-    ENEMY_PATROL, ENEMY_TRACKER, ENEMY_GUARD,
-    ENEMY_MOVE_INTERVAL, TRACKER_MOVE_INTERVAL, GUARD_MOVE_INTERVAL,
-    KNOCKBACK_DIST
-)
-
+from constants import (TILE_SIZE, TILE_WALL, TILE_DOOR, ENEMY_PATROL,
+    ENEMY_TRACKER, ENEMY_GUARD, ENEMY_ELITE, ENEMY_MOVE_INTERVAL,
+    TRACKER_MOVE_INTERVAL, GUARD_MOVE_INTERVAL, ELITE_MOVE_INTERVAL, KNOCKBACK_DIST)
 
 @dataclass
 class Enemy:
@@ -25,7 +20,7 @@ class Enemy:
         self.home_x = tile_x; self.home_y = tile_y
         self.rect.x = tile_x*TILE_SIZE+6; self.rect.y = tile_y*TILE_SIZE+6
         iv = {ENEMY_PATROL:ENEMY_MOVE_INTERVAL, ENEMY_TRACKER:TRACKER_MOVE_INTERVAL,
-              ENEMY_GUARD:GUARD_MOVE_INTERVAL}
+              ENEMY_GUARD:GUARD_MOVE_INTERVAL, ENEMY_ELITE:ELITE_MOVE_INTERVAL}
         self.move_timer = random.randint(0, iv.get(etype, ENEMY_MOVE_INTERVAL))
 
     def _blocked(self, m, tx, ty):
@@ -38,8 +33,10 @@ class Enemy:
             nx,ny = self.tile_x+dx, self.tile_y+dy
             if not self._blocked(m,nx,ny): self.tile_x=nx; self.tile_y=ny; break
 
-    def _move_tracker(self, m, pr):
+    def _move_tracker(self, m, pr, dist_thr=999):
         pcx,pcy = pr.centerx//TILE_SIZE, pr.centery//TILE_SIZE
+        dist=abs(pcx-self.tile_x)+abs(pcy-self.tile_y)
+        if dist>dist_thr: return self._move_patrol(m)
         dx = (1 if pcx>self.tile_x else -1 if pcx<self.tile_x else 0)
         dy = (1 if pcy>self.tile_y else -1 if pcy<self.tile_y else 0)
         moves = []
@@ -47,11 +44,11 @@ class Enemy:
             moves = [(dx,0),(0,dy)] if abs(pcx-self.tile_x)>=abs(pcy-self.tile_y) else [(0,dy),(dx,0)]
         elif dx!=0: moves = [(dx,0)]
         elif dy!=0: moves = [(0,dy)]
-        if random.random()<0.2: random.shuffle(moves)
+        if random.random()<0.15: random.shuffle(moves)
         for mx,my in moves:
             nx,ny = self.tile_x+mx, self.tile_y+my
-            if not self._blocked(m,nx,ny): self.tile_x=nx; self.tile_y=ny; break
-        else: self._move_patrol(m)
+            if not self._blocked(m,nx,ny): self.tile_x=nx; self.tile_y=ny; return
+        self._move_patrol(m)
 
     def _move_guard(self, m):
         dx,dy = self.tile_x-self.home_x, self.tile_y-self.home_y
@@ -66,11 +63,12 @@ class Enemy:
 
     def update(self, m, player_rect=None):
         iv = {ENEMY_PATROL:ENEMY_MOVE_INTERVAL, ENEMY_TRACKER:TRACKER_MOVE_INTERVAL,
-              ENEMY_GUARD:GUARD_MOVE_INTERVAL}
+              ENEMY_GUARD:GUARD_MOVE_INTERVAL, ENEMY_ELITE:ELITE_MOVE_INTERVAL}
         self.move_timer += 1
         if self.move_timer < iv.get(self.etype, ENEMY_MOVE_INTERVAL): return
         self.move_timer = 0
-        if self.etype==ENEMY_TRACKER and player_rect: self._move_tracker(m, player_rect)
+        if self.etype==ENEMY_ELITE and player_rect: self._move_tracker(m, player_rect, 999)
+        elif self.etype==ENEMY_TRACKER and player_rect: self._move_tracker(m, player_rect, 8)
         elif self.etype==ENEMY_GUARD: self._move_guard(m)
         else: self._move_patrol(m)
         self.rect.x = self.tile_x*TILE_SIZE+6; self.rect.y = self.tile_y*TILE_SIZE+6

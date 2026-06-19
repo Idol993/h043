@@ -5,7 +5,7 @@ import sys
 from constants import (WINDOW_WIDTH, WINDOW_HEIGHT, FPS, TILE_SIZE,
     BUFF_HP, BUFF_SPEED, BUFF_KEY_KEEP, BUFF_INVINCIBLE,
     BUFF_LOW_HP_SPEED, BUFF_DOOR_SHIELD, BUFF_KEY_MAGNET, BUFF_HURT_KNOCK,
-    LEVEL_UP_INTERVAL)
+    LEVEL_UP_INTERVAL, KNOCKBACK_DIST)
 from player import Player
 from enemy import Enemy
 from items import Key
@@ -51,19 +51,22 @@ class Game:
             self.level_up_active=True; self.level_up_selected=0
             self.level_up_options = random.sample(ALL_BUFFS, min(3, len(ALL_BUFFS)))
 
-    def _do_knockback(self):
+    def _do_knockback(self, force=False):
         if not self.player.has_buff(BUFF_HURT_KNOCK): return
+        kb_dist, auto_trigger = self.player.get_knockback_bonus()
+        if not force and not auto_trigger: return
         ptx, pty = self.player.get_tile_pos()
         for e in self.enemies:
             dist = abs(e.tile_x-ptx)+abs(e.tile_y-pty)
             if dist <= 4:
-                e.push_away(self.game_map, ptx, pty)
+                e.push_away(self.game_map, ptx, pty, dist=KNOCKBACK_DIST + kb_dist)
 
     def _handle_key_magnet(self):
         if not self.player.has_buff(BUFF_KEY_MAGNET): return
+        br, bs = self.player.get_magnet_bonus()
         for k in self.keys:
             is_first = (self.player.level_keys_collected == 0 and not k.collected)
-            k.try_magnet(self.player.rect, is_first)
+            k.try_magnet(self.player.rect, is_first, br, bs)
             k.update_magnet(self.player.rect)
 
     def handle_events(self):
@@ -97,11 +100,13 @@ class Game:
         for k in self.keys:
             if k.check_pickup(self.player.rect): self.player.add_key()
         for e in self.enemies: e.update(self.game_map, self.player.rect)
+        _, auto = self.player.get_knockback_bonus()
+        if auto: self._do_knockback(force=True)
         for e in self.enemies:
             if e.check_player_collision(self.player.rect):
                 if self.player.take_damage(1):
                     self.game_over = True
-                self._do_knockback()
+                self._do_knockback(force=True)
         if self.player.is_on_stairs(self.game_map):
             self.level += 1; self.load_level(self.level); self._check_level_up()
         self.renderer.camera.update(self.player.x, self.player.y, TILE_SIZE)
